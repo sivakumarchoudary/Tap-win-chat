@@ -90,7 +90,7 @@ function HomePage() {
         {!searching ? (
           <button
             onClick={() => setSearching(true)}
-            disabled={joinMut.isPending}
+            disabled={false}
             className="btn-brand rounded-full size-56 text-2xl font-extrabold tap-target hover:scale-105 transition-transform active:scale-95"
             style={{ boxShadow: "var(--shadow-brand)" }}
           >
