@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { getMyProfile, claimDaily, joinQueue, leaveQueue } from "@/lib/game.functions";
 import { toast } from "sonner";
@@ -39,18 +39,6 @@ function HomePage() {
     }).catch(() => {});
   }, [profile, claim, refetch]);
 
-  const joinMut = useMutation({
-    mutationFn: () => join(),
-    onSuccess: async (res) => {
-      if (!res.waiting) {
-        navigate({ to: "/match/$id", params: { id: res.matchId! } });
-        setSearching(false);
-        return;
-      }
-      // Poll: keep calling join() — server will pair us when someone else joins.
-      // Use a short interval.
-    },
-  });
 
   // Poll while searching
   useEffect(() => {

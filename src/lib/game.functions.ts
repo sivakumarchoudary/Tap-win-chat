@@ -204,8 +204,6 @@ async function settleInternal(matchId: string) {
     gems = 5; unlocked = true;
     await adjustGems(m.user_a, gems, "match_win", matchId);
     await adjustGems(m.user_b, gems, "match_win", matchId);
-    await admin.from("profiles").update({ total_matches_won: undefined }).eq("id", m.user_a); // placeholder no-op
-    await admin.rpc("increment_wins" as never, {} as never).select(); // ignore if missing
   } else if (m.answer_a || m.answer_b) {
     gems = 3; unlocked = true;
     const winner = m.answer_a ? m.user_a : m.user_b;
