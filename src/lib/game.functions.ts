@@ -171,11 +171,11 @@ export const submitAnswer = createServerFn({ method: "POST" })
     if (!m) throw new Error("Match not found");
     if (m.user_a !== me && m.user_b !== me) throw new Error("Not your match");
     const isA = m.user_a === me;
-    const patch: Record<string, unknown> = {};
-    if (isA && !m.answer_a) { patch.answer_a = data.choice; patch.answered_at_a = new Date().toISOString(); }
-    if (!isA && !m.answer_b) { patch.answer_b = data.choice; patch.answered_at_b = new Date().toISOString(); }
-    if (Object.keys(patch).length) {
-      await admin.from("matches").update(patch).eq("id", data.matchId);
+    const now = new Date().toISOString();
+    if (isA && !m.answer_a) {
+      await admin.from("matches").update({ answer_a: data.choice, answered_at_a: now }).eq("id", data.matchId);
+    } else if (!isA && !m.answer_b) {
+      await admin.from("matches").update({ answer_b: data.choice, answered_at_b: now }).eq("id", data.matchId);
     }
     return await settleInternal(data.matchId);
   });
