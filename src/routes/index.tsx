@@ -33,7 +33,7 @@ function Landing() {
         <Link to="/auth" className="btn-brand block rounded-full text-center py-4 font-bold text-lg tap-target">
           Get Started
         </Link>
-        <Link to="/auth" search={{ mode: "signin" } as never} className="block text-center py-3 text-sm text-muted-foreground">
+        <Link to="/auth" className="block text-center py-3 text-sm text-muted-foreground">
           I already have an account
         </Link>
       </div>
