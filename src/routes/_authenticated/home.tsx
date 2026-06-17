@@ -18,6 +18,7 @@ function HomePage() {
   const claim = useServerFn(claimDaily);
   const join = useServerFn(joinQueue);
   const leave = useServerFn(leaveQueue);
+  const seed = useServerFn(seedBots);
 
   const { data: profile, refetch } = useQuery({
     queryKey: ["my-profile"],
