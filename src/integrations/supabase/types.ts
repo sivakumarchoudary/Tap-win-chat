@@ -206,6 +206,7 @@ export type Database = {
           created_at: string
           gems: number
           id: string
+          is_bot: boolean
           last_login_date: string | null
           referral_code: string
           referred_by: string | null
@@ -227,6 +228,7 @@ export type Database = {
           created_at?: string
           gems?: number
           id: string
+          is_bot?: boolean
           last_login_date?: string | null
           referral_code: string
           referred_by?: string | null
@@ -248,6 +250,7 @@ export type Database = {
           created_at?: string
           gems?: number
           id?: string
+          is_bot?: boolean
           last_login_date?: string | null
           referral_code?: string
           referred_by?: string | null
