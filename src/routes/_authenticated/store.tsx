@@ -9,18 +9,16 @@ export const Route = createFileRoute("/_authenticated/store")({
   component: StorePage,
 });
 
-type Item = {
-  id: Parameters<typeof spendGems>[0] extends { data: { item: infer I } } ? I : never;
-  title: string; price: number; emoji: string; desc: string;
-};
+type SpendId = "boost" | "mystery" | "streak_saver" | "badge_legend" | "badge_og" | "badge_platinum" | "badge_globetrotter";
+type Item = { id: SpendId; title: string; price: number; emoji: string; desc: string };
 
 const SPENDS: Item[] = [
-  { id: "boost",            title: "Profile Boost",       price: 50,  emoji: "🚀", desc: "3× visibility for 1 hour" },
-  { id: "mystery",          title: "Mystery Box",         price: 25,  emoji: "🎁", desc: "Win 5–100 💎 (10% jackpot)" },
-  { id: "streak_saver",     title: "Streak Saver",        price: 20,  emoji: "🛟", desc: "Save your daily streak" },
-  { id: "badge_legend",     title: "Legend Badge",        price: 100, emoji: "🏆", desc: "Show off on your profile" },
-  { id: "badge_og",         title: "OG Badge",            price: 100, emoji: "💎", desc: "Exclusive identity flex" },
-  { id: "badge_platinum",   title: "Platinum Badge",      price: 100, emoji: "🥇", desc: "Premium status" },
+  { id: "boost",              title: "Profile Boost",      price: 50,  emoji: "🚀", desc: "3× visibility for 1 hour" },
+  { id: "mystery",            title: "Mystery Box",        price: 25,  emoji: "🎁", desc: "Win 5–100 💎 (10% jackpot)" },
+  { id: "streak_saver",       title: "Streak Saver",       price: 20,  emoji: "🛟", desc: "Save your daily streak" },
+  { id: "badge_legend",       title: "Legend Badge",       price: 100, emoji: "🏆", desc: "Show off on your profile" },
+  { id: "badge_og",           title: "OG Badge",           price: 100, emoji: "💎", desc: "Exclusive identity flex" },
+  { id: "badge_platinum",     title: "Platinum Badge",     price: 100, emoji: "🥇", desc: "Premium status" },
   { id: "badge_globetrotter", title: "Globetrotter Badge", price: 100, emoji: "🌍", desc: "Worldwide vibes" },
 ];
 
