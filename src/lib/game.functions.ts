@@ -107,9 +107,10 @@ export const joinQueue = createServerFn({ method: "POST" })
     if (!qrows || qrows.length === 0) throw new Error("No questions available");
     const q = qrows[Math.floor(Math.random() * qrows.length)];
 
-    const insertRow: Record<string, unknown> = {
-      user_a: partnerId, user_b: me, question_id: q.id, status: "active",
-    };
+    const insertRow: {
+      user_a: string; user_b: string; question_id: string; status: string;
+      answer_a?: "a" | "b"; answered_at_a?: string;
+    } = { user_a: partnerId, user_b: me, question_id: q.id, status: "active" };
     if (botAnswer) {
       insertRow.answer_a = botAnswer;
       insertRow.answered_at_a = new Date().toISOString();
