@@ -405,7 +405,36 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      lb_alltime_gems: {
+        Row: {
+          avatar_url: string | null
+          country: string | null
+          id: string | null
+          score: number | null
+          username: string | null
+        }
+        Relationships: []
+      }
+      lb_monthly_gifts: {
+        Row: {
+          avatar_url: string | null
+          country: string | null
+          id: string | null
+          score: number | null
+          username: string | null
+        }
+        Relationships: []
+      }
+      lb_weekly_wins: {
+        Row: {
+          avatar_url: string | null
+          country: string | null
+          id: string | null
+          score: number | null
+          username: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       adjust_gems: {
@@ -418,12 +447,17 @@ export type Database = {
         }
         Returns: number
       }
+      check_and_award_badges: { Args: { _user_id: string }; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      redeem_referral: {
+        Args: { _code: string; _user_id: string }
+        Returns: Json
       }
     }
     Enums: {
