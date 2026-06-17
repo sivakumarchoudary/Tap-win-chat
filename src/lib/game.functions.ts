@@ -79,26 +79,87 @@ export const joinQueue = createServerFn({ method: "POST" })
 
     const partner = (candidates ?? []).find(c => !excluded.has(c.user_id));
 
-    if (!partner) {
-      // Put myself in queue
+    let partnerId: string | null = partner?.user_id ?? null;
+    let botAnswer: "a" | "b" | null = null;
+
+    if (!partnerId) {
+      // Fall back to a random bot opponent so the player always gets a match.
+      const { data: bots } = await admin
+        .from("profiles")
+        .select("id")
+        .eq("is_bot", true)
+        .limit(50);
+      const usableBots = (bots ?? []).filter(b => !excluded.has(b.id));
+      if (usableBots.length > 0) {
+        const bot = usableBots[Math.floor(Math.random() * usableBots.length)];
+        partnerId = bot.id;
+        // Bot answers ~80% of the time, random side
+        if (Math.random() < 0.8) botAnswer = Math.random() < 0.5 ? "a" : "b";
+      }
+    }
+
+    if (!partnerId) {
       await admin.from("match_queue").upsert({ user_id: me, joined_at: new Date().toISOString() });
       return { waiting: true as const };
     }
 
-    // Pair! Pick random question, create match, remove both from queue.
     const { data: qrows } = await admin.from("questions").select("id").eq("active", true);
     if (!qrows || qrows.length === 0) throw new Error("No questions available");
     const q = qrows[Math.floor(Math.random() * qrows.length)];
 
+    const insertRow: {
+      user_a: string; user_b: string; question_id: string; status: "active";
+      answer_a?: "a" | "b"; answered_at_a?: string;
+    } = { user_a: partnerId, user_b: me, question_id: q.id, status: "active" };
+    if (botAnswer) {
+      insertRow.answer_a = botAnswer;
+      insertRow.answered_at_a = new Date().toISOString();
+    }
     const { data: match, error: mErr } = await admin
       .from("matches")
-      .insert({ user_a: partner.user_id, user_b: me, question_id: q.id, status: "active" })
+      .insert(insertRow)
       .select("id").single();
     if (mErr) throw mErr;
 
-    await admin.from("match_queue").delete().in("user_id", [me, partner.user_id]);
+    await admin.from("match_queue").delete().in("user_id", [me, partnerId]);
 
     return { waiting: false as const, matchId: match.id };
+  });
+
+const BOT_PROFILES = [
+  { name: "Luna", country: "🇫🇷 France", bio: "Coffee addict ☕ & cat mom 🐱" },
+  { name: "Kai", country: "🇯🇵 Japan", bio: "Sushi, anime, neon nights ✨" },
+  { name: "Zara", country: "🇧🇷 Brazil", bio: "Beach + sunsets = life 🌅" },
+  { name: "Milo", country: "🇮🇹 Italy", bio: "Pasta enthusiast 🍝" },
+  { name: "Aria", country: "🇰🇷 Korea", bio: "K-pop dancer 💃" },
+  { name: "Theo", country: "🇩🇪 Germany", bio: "Berlin techno + bouldering 🧗" },
+  { name: "Nova", country: "🇺🇸 USA", bio: "LA based, always exploring 🌴" },
+  { name: "Inez", country: "🇲🇽 Mexico", bio: "Tacos > everything 🌮" },
+];
+
+/** Seed dummy bot profiles you can match against. Idempotent. */
+export const seedBots = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const admin = await getAdmin();
+    let created = 0;
+    for (const b of BOT_PROFILES) {
+      const { data: existing } = await admin
+        .from("profiles").select("id").eq("username", b.name).maybeSingle();
+      if (existing) continue;
+      const email = `bot_${b.name.toLowerCase()}@tapconnect.bot`;
+      const { data: u, error } = await admin.auth.admin.createUser({
+        email, password: crypto.randomUUID(), email_confirm: true,
+      });
+      if (error || !u.user) continue;
+      await admin.from("profiles").update({
+        username: b.name, country: b.country, bio: b.bio, is_bot: true,
+      }).eq("id", u.user.id);
+      created++;
+    }
+    const { count } = await admin
+      .from("profiles").select("id", { count: "exact", head: true }).eq("is_bot", true);
+    return { created, total: count ?? 0 };
   });
 
 export const leaveQueue = createServerFn({ method: "POST" })

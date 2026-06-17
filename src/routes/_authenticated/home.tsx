@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
-import { getMyProfile, claimDaily, joinQueue, leaveQueue } from "@/lib/game.functions";
+import { getMyProfile, claimDaily, joinQueue, leaveQueue, seedBots } from "@/lib/game.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/home")({
@@ -18,6 +18,7 @@ function HomePage() {
   const claim = useServerFn(claimDaily);
   const join = useServerFn(joinQueue);
   const leave = useServerFn(leaveQueue);
+  const seed = useServerFn(seedBots);
 
   const { data: profile, refetch } = useQuery({
     queryKey: ["my-profile"],
@@ -123,6 +124,16 @@ function HomePage() {
             <div className="font-extrabold text-lg">{profile?.total_gems_earned ?? 0} 💎</div>
           </div>
         </div>
+
+        <button
+          onClick={async () => {
+            const r = await seed();
+            toast.success(`${r.total} dummy players ready 🤖 (+${r.created} new)`);
+          }}
+          className="text-xs text-muted-foreground underline mt-4 tap-target px-4 py-2"
+        >
+          Seed dummy opponents
+        </button>
       </div>
     </AppShell>
   );
