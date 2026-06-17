@@ -108,7 +108,7 @@ export const joinQueue = createServerFn({ method: "POST" })
     const q = qrows[Math.floor(Math.random() * qrows.length)];
 
     const insertRow: {
-      user_a: string; user_b: string; question_id: string; status: string;
+      user_a: string; user_b: string; question_id: string; status: "active";
       answer_a?: "a" | "b"; answered_at_a?: string;
     } = { user_a: partnerId, user_b: me, question_id: q.id, status: "active" };
     if (botAnswer) {
