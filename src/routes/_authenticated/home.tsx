@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
-import { getMyProfile, claimDaily, joinQueue, leaveQueue } from "@/lib/game.functions";
+import { getMyProfile, claimDaily, joinQueue, leaveQueue, seedBots } from "@/lib/game.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/home")({
