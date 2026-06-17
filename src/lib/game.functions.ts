@@ -270,12 +270,13 @@ async function settleInternal(matchId: string) {
     const winner = m.answer_a ? m.user_a : m.user_b;
     await adjustGems(winner, gems, "match_win", matchId);
   }
-  // Increment wins manually
+  // Increment wins manually + auto-award badges
   if (unlocked) {
     const winners = bothAnswered ? [m.user_a, m.user_b] : [m.answer_a ? m.user_a : m.user_b];
     for (const w of winners) {
       const { data: prof } = await admin.from("profiles").select("total_matches_won").eq("id", w).maybeSingle();
       if (prof) await admin.from("profiles").update({ total_matches_won: (prof.total_matches_won || 0) + 1 }).eq("id", w);
+      await admin.rpc("check_and_award_badges" as never, { _user_id: w } as never);
     }
   }
   await admin.from("matches").update({
