@@ -283,3 +283,195 @@ async function settleInternal(matchId: string) {
   }).eq("id", matchId);
   return { status: "completed", gemsAwarded: gems, unlocked };
 }
+
+/* ====================== PHASE 3: CHAT, GIFTS, SAFETY ====================== */
+
+async function assertMatchAccess(matchId: string, me: string) {
+  const admin = await getAdmin();
+  const { data: m } = await admin.from("matches").select("user_a,user_b,unlocked").eq("id", matchId).maybeSingle();
+  if (!m) throw new Error("Match not found");
+  if (m.user_a !== me && m.user_b !== me) throw new Error("Not your match");
+  if (!m.unlocked) throw new Error("Match not unlocked yet");
+  const other = m.user_a === me ? m.user_b : m.user_a;
+  // Block check
+  const { data: blocked } = await admin.from("blocks").select("blocker_id")
+    .or(`and(blocker_id.eq.${me},blocked_id.eq.${other}),and(blocker_id.eq.${other},blocked_id.eq.${me})`)
+    .limit(1);
+  if (blocked && blocked.length > 0) throw new Error("Chat unavailable");
+  return { other };
+}
+
+export const getChatThread = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ matchId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { other } = await assertMatchAccess(data.matchId, context.userId);
+    const admin = await getAdmin();
+    const { data: msgs } = await admin.from("messages")
+      .select("id,sender_id,body,type,created_at")
+      .eq("match_id", data.matchId).order("created_at", { ascending: true }).limit(200);
+    const { data: prof } = await admin.from("profiles")
+      .select("id,username,avatar_url,country,bio,is_bot").eq("id", other).maybeSingle();
+    return { messages: msgs ?? [], other: prof };
+  });
+
+export const sendMessage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    matchId: z.string().uuid(),
+    body: z.string().trim().min(1).max(500),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertMatchAccess(data.matchId, context.userId);
+    const admin = await getAdmin();
+    const { data: m, error } = await admin.from("messages").insert({
+      match_id: data.matchId, sender_id: context.userId, body: data.body, type: "text",
+    }).select("id,sender_id,body,type,created_at").single();
+    if (error) throw error;
+
+    // If bot, auto-reply
+    const { other } = await assertMatchAccess(data.matchId, context.userId);
+    const { data: otherProf } = await admin.from("profiles").select("is_bot,username").eq("id", other).maybeSingle();
+    if (otherProf?.is_bot) {
+      const replies = [
+        "haha same 😂", "noo really??", "omg yes 🔥", "tell me more 👀",
+        "bet 💯", "you're funny 😄", "100% agree", "lol stop 😭", "interesting 🤔",
+      ];
+      const reply = replies[Math.floor(Math.random() * replies.length)];
+      setTimeout(async () => {
+        await admin.from("messages").insert({
+          match_id: data.matchId, sender_id: other, body: reply, type: "text",
+        });
+      }, 1200 + Math.random() * 1500);
+    }
+    return m;
+  });
+
+export const sendGift = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    matchId: z.string().uuid(),
+    gift: z.enum(["rose", "fire"]),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { other } = await assertMatchAccess(data.matchId, context.userId);
+    const admin = await getAdmin();
+    const cost = 10;
+    const newBal = await adjustGems(context.userId, -cost, "gift_sent", null, `Gift: ${data.gift}`);
+    if (newBal === null) throw new Error("Not enough 💎");
+    await adjustGems(other, Math.ceil(cost / 2), "gift_received", null, `Gift from ${context.userId}`);
+    await admin.from("profiles").update({ total_gifts_sent: (await admin.from("profiles").select("total_gifts_sent").eq("id", context.userId).single()).data!.total_gifts_sent + 1 }).eq("id", context.userId);
+    const emoji = data.gift === "rose" ? "🌹" : "🔥";
+    await admin.from("messages").insert({
+      match_id: data.matchId, sender_id: context.userId, body: `Sent a ${emoji}!`, type: "gift",
+    });
+    await admin.rpc("check_and_award_badges" as never, { _user_id: context.userId } as never);
+    return { ok: true, gems: newBal };
+  });
+
+export const blockUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ userId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    if (data.userId === context.userId) throw new Error("Can't block yourself");
+    const admin = await getAdmin();
+    await admin.from("blocks").upsert({ blocker_id: context.userId, blocked_id: data.userId });
+    return { ok: true };
+  });
+
+export const reportUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    userId: z.string().uuid(),
+    matchId: z.string().uuid().optional(),
+    reason: z.string().trim().min(3).max(300),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const admin = await getAdmin();
+    await admin.from("reports").insert({
+      reporter_id: context.userId, reported_id: data.userId,
+      match_id: data.matchId ?? null, reason: data.reason,
+    });
+    return { ok: true };
+  });
+
+/* ====================== PHASE 4: ECONOMY, REFERRALS, LEADERBOARDS ====================== */
+
+export const redeemReferral = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ code: z.string().trim().min(4).max(20) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const admin = await getAdmin();
+    const { data: r, error } = await admin.rpc("redeem_referral" as never, {
+      _user_id: context.userId, _code: data.code,
+    } as never);
+    if (error) throw error;
+    return r as { ok: boolean; reason?: string; owner?: string };
+  });
+
+export const spendGems = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    item: z.enum(["boost", "mystery", "streak_saver", "badge_legend", "badge_og", "badge_platinum", "badge_globetrotter"]),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const admin = await getAdmin();
+    const me = context.userId;
+
+    if (data.item === "boost") {
+      const bal = await adjustGems(me, -50, "spend_boost", null, "Profile Boost 1h");
+      if (bal === null) throw new Error("Not enough 💎");
+      const until = new Date(Date.now() + 3600_000).toISOString();
+      await admin.from("profiles").update({ boost_until: until }).eq("id", me);
+      return { ok: true, gems: bal, message: "Boost active for 1 hour ✨" };
+    }
+
+    if (data.item === "mystery") {
+      const bal = await adjustGems(me, -25, "spend_mystery", null, "Mystery Box");
+      if (bal === null) throw new Error("Not enough 💎");
+      const roll = Math.random();
+      const payout = roll < 0.10 ? 100 : roll < 0.30 ? 50 : 5 + Math.floor(Math.random() * 21);
+      const newBal = await adjustGems(me, payout, "mystery_payout", null, `Mystery payout ${payout}`);
+      return { ok: true, gems: newBal, payout, message: `🎁 You won +${payout} 💎!` };
+    }
+
+    if (data.item === "streak_saver") {
+      const bal = await adjustGems(me, -20, "spend_streak_saver", null, "Streak Saver");
+      if (bal === null) throw new Error("Not enough 💎");
+      const yest = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      await admin.from("profiles").update({ last_login_date: yest }).eq("id", me);
+      return { ok: true, gems: bal, message: "Streak saved! 🛟" };
+    }
+
+    // Paid badges
+    const badgeMap: Record<string, string> = {
+      badge_legend: "legend", badge_og: "og",
+      badge_platinum: "platinum", badge_globetrotter: "globetrotter",
+    };
+    const badgeId = badgeMap[data.item];
+    const { data: existing } = await admin.from("user_badges").select("badge_id").eq("user_id", me).eq("badge_id", badgeId).maybeSingle();
+    if (existing) throw new Error("You already own this badge");
+    const bal = await adjustGems(me, -100, "spend_badge", null, `Badge: ${badgeId}`);
+    if (bal === null) throw new Error("Not enough 💎");
+    await admin.from("user_badges").insert({ user_id: me, badge_id: badgeId });
+    return { ok: true, gems: bal, message: `Badge unlocked 🏅` };
+  });
+
+export const getLeaderboard = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ tab: z.enum(["weekly", "gems", "gifts"]) }).parse(d))
+  .handler(async ({ data }) => {
+    const admin = await getAdmin();
+    const view = data.tab === "weekly" ? "lb_weekly_wins" : data.tab === "gems" ? "lb_alltime_gems" : "lb_monthly_gifts";
+    const { data: rows } = await admin.from(view as never).select("*").limit(25);
+    return (rows ?? []) as Array<{ id: string; username: string; avatar_url: string | null; country: string | null; score: number }>;
+  });
+
+export const getMyBadges = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const admin = await getAdmin();
+    const { data } = await admin.from("user_badges")
+      .select("badge_id,awarded_at,badges(name,emoji,description)").eq("user_id", context.userId);
+    return data ?? [];
+  });
