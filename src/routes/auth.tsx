@@ -112,6 +112,13 @@ function AuthPage() {
           <>New here? <button onClick={() => setMode("signup")} className="font-semibold text-primary">Create account</button></>
         )}
       </div>
+
+      <div className="text-center mt-6 text-xs text-muted-foreground">
+        By continuing you agree to our{" "}
+        <a href="/terms" className="underline">Terms</a> and{" "}
+        <a href="/privacy" className="underline">Privacy Policy</a>.
+      </div>
     </div>
   );
 }
+
