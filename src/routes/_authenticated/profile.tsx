@@ -1,11 +1,12 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { getMyProfile, getMyBadges, redeemReferral } from "@/lib/game.functions";
+import { getMyProfile, getMyBadges, redeemReferral, suggestQuestion } from "@/lib/game.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/_authenticated/profile")({
   component: ProfilePage,
@@ -17,10 +18,15 @@ function ProfilePage() {
   const getProfile = useServerFn(getMyProfile);
   const getBadges = useServerFn(getMyBadges);
   const redeem = useServerFn(redeemReferral);
+  const suggest = useServerFn(suggestQuestion);
 
   const { data: profile } = useQuery({ queryKey: ["my-profile"], queryFn: () => getProfile() });
   const { data: badges } = useQuery({ queryKey: ["my-badges"], queryFn: () => getBadges() });
   const [code, setCode] = useState("");
+  const [qa, setQa] = useState("");
+  const [qb, setQb] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -99,13 +105,51 @@ function ProfilePage() {
           </div>
         )}
 
+        <div className="card-soft p-4 w-full">
+          <div className="text-xs text-muted-foreground mb-2">Suggest a "This or That" question</div>
+          <div className="flex flex-col gap-2">
+            <input
+              value={qa} onChange={(e) => setQa(e.target.value)}
+              placeholder="Option A (e.g. Pizza)" maxLength={60}
+              className="rounded-full bg-secondary px-4 py-2 outline-none"
+            />
+            <input
+              value={qb} onChange={(e) => setQb(e.target.value)}
+              placeholder="Option B (e.g. Burger)" maxLength={60}
+              className="rounded-full bg-secondary px-4 py-2 outline-none"
+            />
+            <button
+              disabled={submitting || !qa.trim() || !qb.trim()}
+              onClick={async () => {
+                setSubmitting(true);
+                try {
+                  await suggest({ data: { option_a: qa.trim(), option_b: qb.trim() } });
+                  toast.success("Thanks! Sent for review ✨");
+                  setQa(""); setQb("");
+                } catch (e: any) { toast.error(e.message); }
+                finally { setSubmitting(false); }
+              }}
+              className="btn-brand rounded-full py-2 font-bold tap-target disabled:opacity-60"
+            >
+              {submitting ? "Sending…" : "Submit suggestion"}
+            </button>
+          </div>
+        </div>
+
         <button onClick={signOut} className="mt-4 text-sm text-muted-foreground underline tap-target px-4 py-2">
           Sign out
         </button>
+
+        <div className="text-xs text-muted-foreground text-center pt-2 pb-6">
+          <Link to="/privacy" className="underline">Privacy</Link>
+          <span className="mx-2">·</span>
+          <Link to="/terms" className="underline">Terms</Link>
+        </div>
       </div>
     </AppShell>
   );
 }
+
 
 function Stat({ label, value, emoji }: { label: string; value: number; emoji: string }) {
   return (
