@@ -476,3 +476,22 @@ export const getMyBadges = createServerFn({ method: "GET" })
       .select("badge_id,awarded_at,badges(name,emoji,description)").eq("user_id", context.userId);
     return data ?? [];
   });
+
+export const suggestQuestion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    option_a: z.string().trim().min(1).max(60),
+    option_b: z.string().trim().min(1).max(60),
+    category: z.string().trim().max(40).optional(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const admin = await getAdmin();
+    const { error } = await admin.from("question_suggestions").insert({
+      suggested_by: context.userId,
+      option_a: data.option_a,
+      option_b: data.option_b,
+      category: data.category ?? null,
+    });
+    if (error) throw error;
+    return { ok: true };
+  });
